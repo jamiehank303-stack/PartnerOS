@@ -31,3 +31,12 @@ class CTraderConnector:
             raise Exception("Not authorized")
 
         return self.account
+
+    def get_quote(self, symbol):
+        raise NotImplementedError
+
+    def get_candles(self, symbol, timeframe, limit):
+        raise NotImplementedError
+
+    def get_symbol_info(self, symbol):
+        raise NotImplementedError

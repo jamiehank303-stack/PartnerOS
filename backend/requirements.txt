@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+openai
+python-dotenv
+pandas
+numpy
+requests
+sqlalchemy
+pydantic
+websockets
+PySide6
+authlib
+httpx

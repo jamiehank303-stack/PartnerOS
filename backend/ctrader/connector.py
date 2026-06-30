@@ -1,9 +1,16 @@
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
-from ctrader_open_api import Client, TcpProtocol, EndPoints
+from ctrader_open_api import Client, TcpProtocol, EndPoints, Protobuf
+from ctrader_open_api.messages.OpenApiMessages_pb2 import (
+    ProtoOAApplicationAuthReq,
+    ProtoOAGetAccountListByAccessTokenReq,
+    ProtoOAAccountAuthReq,
+)
+
+from .exceptions import AuthenticationError, ConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +31,7 @@ class CTraderConnector:
         self.authorized = False
         self.account = None
         self.client: Optional[Client] = None
+        self.ctid_trader_account_id: Optional[int] = None
 
     def connect(self):
         host_type = os.environ.get("CTRADER_HOST_TYPE", "demo").lower()
@@ -49,25 +57,99 @@ class CTraderConnector:
 
     def _on_message_received(self, client, message):
         # TODO: implement message dispatch. Incoming Protobuf messages
-        # (ProtoOAApplicationAuthRes, ProtoOAAccountAuthRes, ProtoOASpotEvent,
-        # ProtoOAReconcileRes, etc.) need to be routed to the deferred/handler
-        # that is waiting for that specific response type. Not implemented yet.
+        # (ProtoOASpotEvent, ProtoOAReconcileRes, ProtoOAExecutionEvent, etc.)
+        # need to be routed to the deferred/handler that is waiting for that
+        # specific response type. Not implemented yet.
         logger.warning(
             "Message dispatch not implemented yet. Received message type: %s",
             type(message),
         )
 
-    def authorize(self):
+    def application_auth(self, client_id: str, client_secret: str):
         if not self.connected or self.client is None:
-            raise Exception("Cannot authorize before the client is connected")
+            raise ConnectionError(
+                "Cannot perform application authentication before the client is connected"
+            )
 
-        # TODO: perform official cTrader Open API Application Authentication here.
-        # Build a ProtoOAApplicationAuthReq with clientId/clientSecret (from the
-        # OAuth credentials), send it via self.client.send(applicationAuthReq),
-        # and set self.authorized = True only once a ProtoOAApplicationAuthRes
-        # is actually received (success, not assumed).
-        raise NotImplementedError(
-            "Application authentication via ProtoOAApplicationAuthReq is not implemented yet"
+        request = ProtoOAApplicationAuthReq()
+        request.clientId = client_id
+        request.clientSecret = client_secret
+
+        deferred = self.client.send(request)
+        deferred.addCallbacks(
+            self._on_application_auth_success,
+            self._on_application_auth_failure,
+        )
+        return deferred
+
+    def _on_application_auth_success(self, response):
+        logger.info("Application authentication succeeded")
+        return response
+
+    def _on_application_auth_failure(self, failure):
+        raise AuthenticationError(
+            f"Application authentication failed: {failure}"
+        )
+
+    def get_account_list(self, access_token: str):
+        if not self.connected or self.client is None:
+            raise ConnectionError(
+                "Cannot request account list before the client is connected"
+            )
+
+        request = ProtoOAGetAccountListByAccessTokenReq()
+        request.accessToken = access_token
+
+        deferred = self.client.send(request)
+        deferred.addCallbacks(
+            self._on_get_account_list_success,
+            self._on_get_account_list_failure,
+        )
+        return deferred
+
+    def _on_get_account_list_success(self, response) -> List[int]:
+        parsed = Protobuf.extract(response)
+        account_ids = [
+            int(account.ctidTraderAccountId)
+            for account in parsed.ctidTraderAccount
+        ]
+        return account_ids
+
+    def _on_get_account_list_failure(self, failure):
+        raise AuthenticationError(
+            f"Fetching account list by access token failed: {failure}"
+        )
+
+    def account_auth(self, account_id: int, access_token: str):
+        if not self.connected or self.client is None:
+            raise ConnectionError(
+                "Cannot perform account authentication before the client is connected"
+            )
+
+        request = ProtoOAAccountAuthReq()
+        request.ctidTraderAccountId = account_id
+        request.accessToken = access_token
+
+        deferred = self.client.send(request)
+        deferred.addCallbacks(
+            self._on_account_auth_success,
+            self._on_account_auth_failure,
+        )
+        return deferred
+
+    def _on_account_auth_success(self, response):
+        parsed = Protobuf.extract(response)
+        self.ctid_trader_account_id = int(parsed.ctidTraderAccountId)
+        self.authorized = True
+        logger.info(
+            "Account %s has been authorized", self.ctid_trader_account_id
+        )
+        return response
+
+    def _on_account_auth_failure(self, failure):
+        self.authorized = False
+        raise AuthenticationError(
+            f"Account authentication failed: {failure}"
         )
 
     def get_account(self):

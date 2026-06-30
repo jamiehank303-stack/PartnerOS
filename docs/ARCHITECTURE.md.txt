@@ -1,0 +1,39 @@
+# PartnerOS Architecture
+
+## Goal
+
+Institutional Trading Assistant
+
+## Components
+
+- Desktop (PySide6)
+- Backend (FastAPI)
+- cTrader Open API Client
+- AI Engine (OpenAI)
+- Liquidity Engine
+- Journal
+- Risk Manager
+- Settings
+
+## Flow
+
+cTrader
+↓
+
+Market Data
+
+↓
+
+Liquidity Engine
+
+↓
+
+Partner AI
+
+↓
+
+Dashboard
+
+↓
+
+Manual Execution

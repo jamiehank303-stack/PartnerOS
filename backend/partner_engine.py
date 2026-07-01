@@ -17,11 +17,11 @@ from typing import List, Optional, Tuple
 
 from twisted.internet import defer, reactor, task
 
-from .connector import CTraderConnector, Candle
-from .market import MarketService
-from .liquidity import Bar
-from .direction import Direction
-from .setup_validator import validate_setup
+from .ctrader.connector import CTraderConnector, Candle
+from .ctrader.market import MarketService
+from .ctrader.liquidity import Bar
+from .ctrader.direction import Direction
+from .ctrader.setup_validator import validate_setup
 
 
 def _candles_to_bars(candles: List[Candle], digits: int) -> List[Bar]:

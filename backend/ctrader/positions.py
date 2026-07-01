@@ -1,18 +1,11 @@
-from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
-from .connector import CTraderConnector
+from .connector import CTraderConnector, Position
 
-
-@dataclass
-class Position:
-    position_id: int
-    symbol: str
-    side: str
-    volume: float
-    entry_price: float
-    current_price: Optional[float]
-    profit: Optional[float]
+# Position now lives in connector.py (single source of truth for the real
+# protobuf-derived data), re-exported here so existing imports of
+# `from .positions import Position` keep working.
+__all__ = ["PositionService", "Position"]
 
 
 class PositionService:
@@ -20,5 +13,6 @@ class PositionService:
     def __init__(self, connector: CTraderConnector) -> None:
         self.connector = connector
 
-    def get_open_positions(self) -> List[Position]:
+    def get_open_positions(self):
+        # Returns a Twisted deferred resolving to a List[Position].
         return self.connector.get_positions()

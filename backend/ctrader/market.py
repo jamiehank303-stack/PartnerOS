@@ -1,32 +1,11 @@
-from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
-from .connector import CTraderConnector
+from .connector import CTraderConnector, Quote, Candle, SymbolInfo
 
-
-@dataclass
-class Quote:
-    symbol: str
-    bid: float
-    ask: float
-
-
-@dataclass
-class Candle:
-    timestamp: int
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: Optional[float]
-
-
-@dataclass
-class SymbolInfo:
-    symbol: str
-    digits: Optional[int]
-    pip_size: Optional[float]
-    contract_size: Optional[float]
+# Quote, Candle, SymbolInfo now live in connector.py (single source of truth
+# for the real protobuf-derived data), and are re-exported here so existing
+# imports of `from .market import Quote` etc. keep working.
+__all__ = ["MarketService", "Quote", "Candle", "SymbolInfo"]
 
 
 class MarketService:
@@ -34,11 +13,17 @@ class MarketService:
     def __init__(self, connector: CTraderConnector) -> None:
         self.connector = connector
 
-    def get_quote(self, symbol: str) -> Quote:
-        return self.connector.get_quote(symbol)
+    def get_quote(self, symbol_id: int):
+        # Returns a Twisted deferred resolving to a Quote. Subscribes once
+        # per symbol and caches the latest value - safe to call repeatedly
+        # for the same symbol, and the same subscription/cache is reused
+        # if live streaming is built on top of this later.
+        return self.connector.get_quote(symbol_id)
 
-    def get_candles(self, symbol: str, timeframe: str, limit: int) -> List[Candle]:
-        return self.connector.get_candles(symbol, timeframe, limit)
+    def get_candles(self, symbol_id: int, timeframe: str, limit: int):
+        # Returns a Twisted deferred resolving to a List[Candle].
+        return self.connector.get_candles(symbol_id, timeframe, limit)
 
-    def get_symbol_info(self, symbol: str) -> SymbolInfo:
-        return self.connector.get_symbol_info(symbol)
+    def get_symbol_info(self, symbol_id: int):
+        # Returns a Twisted deferred resolving to a SymbolInfo.
+        return self.connector.get_symbol_info(symbol_id)
